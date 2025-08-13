@@ -325,6 +325,7 @@ def convert_pos_carts_to_mol(pos, carts, charge_multiplicity=[
             m1 += "--\n"
         m1 += f"{charge_multiplicity[i][0]} {charge_multiplicity[i][1]}\n"
         m1 += print_cartesians_pos_carts(pos[i], carts[i], only_results=True)
+    m1 += "units bohr\nno_com\nno_reorient\n" 
     mol = qcel.models.Molecule.from_data(m1)
     return mol
 
