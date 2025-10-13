@@ -299,10 +299,14 @@ def convert_ap_row_to_mol(r, n_mer=1) -> qcel.models.Molecule:
     return mol
 
 
-def convert_pos_carts_to_mol(pos, carts, charge_multiplicity=[
-    [0, 1],
-    [0, 1],
-]):
+def convert_pos_carts_to_mol(
+    pos,
+    carts,
+    charge_multiplicity=[
+        [0, 1],
+        [0, 1],
+    ],
+):
     """
     Convert atomic positions and Cartesian coordinates to a QCElemental Molecule.
 
@@ -1189,16 +1193,22 @@ def parse_fisapt0_output(filename):
     parse_fisapt0_output parses the output of a FISAPT0 calculation and returns a dictionary.
     Returns energy values in kcal/mol.
     """
-    with open(filename, 'r') as f:
+    with open(filename, "r") as f:
         content = f.read()
     # Extract the relevant energies using regex
-    energy_dict = {"ELST": None, "EXCH": None, "INDU": None, "DISP": None, "TOTAL": None}
+    energy_dict = {
+        "ELST": None,
+        "EXCH": None,
+        "INDU": None,
+        "DISP": None,
+        "TOTAL": None,
+    }
     patterns = {
         "ELST": r"Electrostatics\s+([-+]?\d*\.\d+|\d+)",
         "EXCH": r"Exchange\s+([-+]?\d*\.\d+|\d+)",
         "INDU": r"Induction\s+([-+]?\d*\.\d+|\d+)",
         "DISP": r"Dispersion\s+([-+]?\d*\.\d+|\d+)",
-        "TOTAL": r"Total SAPT0\s+([-+]?\d*\.\d+|\d+)"
+        "TOTAL": r"Total SAPT0\s+([-+]?\d*\.\d+|\d+)",
     }
     for key, pattern in patterns.items():
         match = re.search(pattern, content)
@@ -1206,7 +1216,9 @@ def parse_fisapt0_output(filename):
             # Extract the value and convert to float
             value_str = match.group(1).strip()
             try:
-                energy_dict[key] = float(value_str) * qcel.constants.conversion_factor("mEh", "kcal/mol")
+                energy_dict[key] = float(value_str) * qcel.constants.conversion_factor(
+                    "mEh", "kcal/mol"
+                )
             except ValueError:
                 print(f"Could not convert {value_str} to float for {key}.")
         else:
@@ -1214,4 +1226,33 @@ def parse_fisapt0_output(filename):
     return energy_dict
 
 
+def fragment_molecule(mol: qcel.models.Molecule):
+    from psi4.driver.qcdb.bfs import BFS
 
+    frags = BFS(mol.geometry, mol.atomic_numbers, bond_threshold=1.4)
+    bond_thresholds = np.arange(1.4, 1.0, -0.01)
+    for i in bond_thresholds:
+        frags = BFS(mol.geometry, mol.atomic_numbers, bond_threshold=i)
+        if len(frags) == 2:
+            return frags
+    # assert len(frags) == 2, "Expected exactly two fragments in the molecule. Got: {}".format(frags)
+    print("Expected exactly two fragments in the molecule. Got: {}".format(frags))
+    return
+
+
+def xyz_dimer_to_qcelemental_mol_dimer(xyz_path: str):
+    mol = qcel.models.Molecule.from_data(xyz_path, dtype="xyz")
+    frags = fragment_molecule(mol)
+    if frags is None:
+        return
+    else:
+        mol_dict = dict(mol)
+        mol2_dict = {
+            "symbols": mol_dict["symbols"],
+            "geometry": mol_dict["geometry"],
+            "fragments": [np.array(frags[0]), np.array(frags[1])],
+        }
+        try:
+            return qcel.models.Molecule(**mol2_dict)
+        except Exception as e:
+            return
